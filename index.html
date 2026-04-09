@@ -1,107 +1,495 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AvtoMapa</title>
-
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: Arial;
-      background: #f5f7fa;
+      font-family: Arial, sans-serif;
+      background: #f4f7fb;
+      color: #1f2937;
     }
 
     header {
-      background: #0d6efd;
-      color: white;
-      padding: 15px;
-      font-size: 22px;
-      font-weight: bold;
+      background: linear-gradient(90deg, #0d6efd, #0a58ca);
+      color: #fff;
+      padding: 16px 20px;
+      font-size: 28px;
+      font-weight: 700;
     }
 
-    .search {
-      padding: 15px;
-      background: white;
-      display: flex;
+    .topbar {
+      background: #fff;
+      border-bottom: 1px solid #dbe3ee;
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr 160px 140px;
       gap: 10px;
     }
 
-    .search input {
-      flex: 1;
-      padding: 10px;
-      font-size: 16px;
+    .topbar input,
+    .topbar select,
+    .topbar button {
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid #cfd8e3;
+      font-size: 15px;
     }
 
-    .search button {
+    .topbar input,
+    .topbar select {
+      padding: 0 12px;
+      background: #fff;
+    }
+
+    .topbar button {
       background: #0d6efd;
-      color: white;
+      color: #fff;
       border: none;
-      padding: 10px 20px;
       cursor: pointer;
+      font-weight: 600;
+    }
+
+    .topbar button:hover {
+      background: #0b5ed7;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 0;
+      height: calc(100vh - 109px);
+    }
+
+    .sidebar {
+      background: #fff;
+      border-right: 1px solid #dbe3ee;
+      overflow-y: auto;
+      padding: 14px;
+    }
+
+    .sidebar h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    .result-count {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 12px;
+    }
+
+    .card {
+      border: 1px solid #e3e8ef;
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: #fafcff;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #0f172a;
+    }
+
+    .meta {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #374151;
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .badge.parts { background: #2563eb; }
+    .badge.service { background: #f59e0b; }
+    .badge.car { background: #10b981; }
+
+    .price {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #111827;
+    }
+
+    .phone-link {
+      display: inline-block;
+      text-decoration: none;
+      background: #16a34a;
+      color: #fff;
+      padding: 9px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
     }
 
     #map {
-      height: calc(100vh - 120px);
+      width: 100%;
+      height: 100%;
+    }
+
+    .legend {
+      position: absolute;
+      z-index: 500;
+      right: 12px;
+      bottom: 12px;
+      background: rgba(255,255,255,0.96);
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #dbe3ee;
+      font-size: 13px;
+      line-height: 1.7;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    }
+
+    .legend span {
+      display: inline-block;
+      min-width: 22px;
+    }
+
+    .empty {
+      padding: 16px;
+      border: 1px dashed #cbd5e1;
+      border-radius: 12px;
+      color: #64748b;
+      background: #f8fafc;
+    }
+
+    @media (max-width: 900px) {
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+      .layout {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+      .sidebar {
+        height: auto;
+        max-height: 360px;
+      }
+      #map {
+        height: 65vh;
+      }
     }
   </style>
 </head>
 <body>
+  <header>🚗 AvtoMapa — пошук запчастин на мапі</header>
 
-<header>
-  🚗 AvtoMapa — пошук запчастин на мапі
-</header>
+  <div class="topbar">
+    <input
+      type="text"
+      id="searchInput"
+      placeholder="Введіть код або назву запчастини, наприклад 3530397501"
+    />
+    <select id="typeFilter">
+      <option value="all">Усі категорії</option>
+      <option value="parts">Запчастини</option>
+      <option value="service">СТО</option>
+      <option value="car">Авто</option>
+    </select>
+    <button onclick="applyFilters()">Пошук</button>
+  </div>
 
-<div class="search">
-  <input type="text" id="searchInput" placeholder="Введіть код або назву запчастини">
-  <button onclick="search()">Пошук</button>
-</div>
+  <div class="layout">
+    <aside class="sidebar">
+      <h2>Результати</h2>
+      <div class="result-count" id="resultCount">Завантаження...</div>
+      <div id="results"></div>
+    </aside>
 
-<div id="map"></div>
+    <div style="position:relative;">
+      <div id="map"></div>
+      <div class="legend">
+        <div><span>🔵</span> Запчастини</div>
+        <div><span>🟡</span> СТО</div>
+        <div><span>🟢</span> Авто</div>
+      </div>
+    </div>
+  </div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const map = L.map("map").setView([49.0, 31.0], 6);
 
-<script>
-  // Карта Україна
-  var map = L.map('map').setView([49.0, 31.0], 6);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap"
+    }).addTo(map);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-  }).addTo(map);
-
-  // Тестові точки (продавці)
-  var sellers = [
-    { name: "СТО Київ", lat: 50.45, lng: 30.52, part: "масло" },
-    { name: "Запчастини Львів", lat: 49.84, lng: 24.03, part: "фільтр" },
-    { name: "Авто Харків", lat: 49.99, lng: 36.23, part: "гальма" }
-  ];
-
-  var markers = [];
-
-  sellers.forEach(s => {
-    var marker = L.marker([s.lat, s.lng])
-      .addTo(map)
-      .bindPopup("<b>" + s.name + "</b><br>" + s.part);
-
-    marker.part = s.part;
-    markers.push(marker);
-  });
-
-  function search() {
-    var value = document.getElementById("searchInput").value.toLowerCase();
-
-    markers.forEach(m => {
-      if (m.part.includes(value)) {
-        m.addTo(map);
-      } else {
-        map.removeLayer(m);
-      }
+    const blueIcon = new L.Icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
+      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
     });
-  }
-</script>
 
+    const yellowIcon = new L.Icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-gold.png",
+      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
+    const greenIcon = new L.Icon({
+      iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png",
+      shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
+    const items = [
+      {
+        type: "parts",
+        title: "3530397501 — запчастина",
+        code: "3530397501",
+        name: "Запчастина Daihatsu",
+        price: 1102,
+        city: "Київ",
+        seller: "AvtoMapa Київ",
+        phone: "+380671111111",
+        lat: 50.45,
+        lng: 30.52,
+        description: "В наявності. Оригінал."
+      },
+      {
+        type: "parts",
+        title: "11791B1020 — запчастина",
+        code: "11791B1020",
+        name: "Запчастина Daihatsu",
+        price: 339,
+        city: "Львів",
+        seller: "Запчастини Львів",
+        phone: "+380672222222",
+        lat: 49.84,
+        lng: 24.03,
+        description: "4 шт. по 339 грн."
+      },
+      {
+        type: "parts",
+        title: "16100B9011 — запчастина",
+        code: "16100B9011",
+        name: "Помпа / вузол охолодження",
+        price: 1900,
+        city: "Харків",
+        seller: "Авто Харків",
+        phone: "+380673333333",
+        lat: 49.99,
+        lng: 36.23,
+        description: "Наявність уточнюйте."
+      },
+      {
+        type: "parts",
+        title: "4882297503 — запчастина",
+        code: "4882297503",
+        name: "Запчастина підвіски",
+        price: 474,
+        city: "Дніпро",
+        seller: "Dnepr Parts",
+        phone: "+380674444444",
+        lat: 48.46,
+        lng: 35.05,
+        description: "2 шт. по 474 грн."
+      },
+      {
+        type: "parts",
+        title: "9004110045 — запчастина",
+        code: "9004110045",
+        name: "Кріплення / метиз",
+        price: 83,
+        city: "Одеса",
+        seller: "Avto Odesa",
+        phone: "+380675555555",
+        lat: 46.48,
+        lng: 30.73,
+        description: "10 шт. по 83 грн."
+      },
+      {
+        type: "service",
+        title: "СТО Київ Центр",
+        code: "",
+        name: "Ремонт ходової, заміна масла",
+        price: 0,
+        city: "Київ",
+        seller: "СТО Київ Центр",
+        phone: "+380676666666",
+        lat: 50.44,
+        lng: 30.50,
+        description: "СТО, діагностика, обслуговування."
+      },
+      {
+        type: "service",
+        title: "СТО Львів Майстер",
+        code: "",
+        name: "СТО та діагностика",
+        price: 0,
+        city: "Львів",
+        seller: "СТО Львів Майстер",
+        phone: "+380677777777",
+        lat: 49.83,
+        lng: 24.01,
+        description: "Підбір і встановлення запчастин."
+      },
+      {
+        type: "car",
+        title: "Автомобіль Daihatsu Terios",
+        code: "",
+        name: "Daihatsu Terios 1.5",
+        price: 285000,
+        city: "Вінниця",
+        seller: "Авто Вінниця",
+        phone: "+380678888888",
+        lat: 49.23,
+        lng: 28.48,
+        description: "Автомобіль на продаж."
+      }
+    ];
+
+    const markers = [];
+
+    function getIcon(type) {
+      if (type === "parts") return blueIcon;
+      if (type === "service") return yellowIcon;
+      return greenIcon;
+    }
+
+    function getBadgeClass(type) {
+      if (type === "parts") return "parts";
+      if (type === "service") return "service";
+      return "car";
+    }
+
+    function getTypeLabel(type) {
+      if (type === "parts") return "Запчастини";
+      if (type === "service") return "СТО";
+      return "Авто";
+    }
+
+    function formatPrice(item) {
+      if (item.type === "service") return "Ціна за запитом";
+      return item.price.toLocaleString("uk-UA") + " грн";
+    }
+
+    items.forEach((item, index) => {
+      const popupHtml = `
+        <div style="min-width:220px;">
+          <div style="font-weight:700;font-size:16px;margin-bottom:6px;">${item.title}</div>
+          <div style="margin-bottom:4px;"><b>Категорія:</b> ${getTypeLabel(item.type)}</div>
+          ${item.code ? `<div style="margin-bottom:4px;"><b>Код:</b> ${item.code}</div>` : ""}
+          <div style="margin-bottom:4px;"><b>Опис:</b> ${item.name}</div>
+          <div style="margin-bottom:4px;"><b>Місто:</b> ${item.city}</div>
+          <div style="margin-bottom:4px;"><b>Продавець:</b> ${item.seller}</div>
+          <div style="margin-bottom:8px;"><b>Ціна:</b> ${formatPrice(item)}</div>
+          <a href="tel:${item.phone}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:8px 10px;border-radius:8px;font-weight:700;">Подзвонити</a>
+        </div>
+      `;
+
+      const marker = L.marker([item.lat, item.lng], { icon: getIcon(item.type) })
+        .addTo(map)
+        .bindPopup(popupHtml);
+
+      marker.itemIndex = index;
+      markers.push(marker);
+    });
+
+    function renderResults(filtered) {
+      const results = document.getElementById("results");
+      const resultCount = document.getElementById("resultCount");
+
+      resultCount.textContent = "Знайдено: " + filtered.length;
+
+      if (!filtered.length) {
+        results.innerHTML = `<div class="empty">Нічого не знайдено. Спробуйте інший код, назву або категорію.</div>`;
+        return;
+      }
+
+      results.innerHTML = filtered.map(item => `
+        <div class="card">
+          <div class="badge ${getBadgeClass(item.type)}">${getTypeLabel(item.type)}</div>
+          <div class="card-title">${item.title}</div>
+          <div class="meta">
+            ${item.code ? `<div><b>Код:</b> ${item.code}</div>` : ""}
+            <div><b>Опис:</b> ${item.name}</div>
+            <div><b>Місто:</b> ${item.city}</div>
+            <div><b>Продавець:</b> ${item.seller}</div>
+          </div>
+          <div class="price">${formatPrice(item)}</div>
+          <a class="phone-link" href="tel:${item.phone}">Подзвонити</a>
+        </div>
+      `).join("");
+    }
+
+    function applyFilters() {
+      const query = document.getElementById("searchInput").value.trim().toLowerCase();
+      const typeFilter = document.getElementById("typeFilter").value;
+
+      const filtered = items.filter(item => {
+        const matchesType = typeFilter === "all" || item.type === typeFilter;
+
+        const text = [
+          item.title,
+          item.code,
+          item.name,
+          item.city,
+          item.seller,
+          item.description
+        ].join(" ").toLowerCase();
+
+        const matchesQuery = !query || text.includes(query);
+
+        return matchesType && matchesQuery;
+      });
+
+      markers.forEach(marker => {
+        const item = items[marker.itemIndex];
+        const isVisible = filtered.includes(item);
+
+        if (isVisible) {
+          if (!map.hasLayer(marker)) marker.addTo(map);
+        } else {
+          if (map.hasLayer(marker)) map.removeLayer(marker);
+        }
+      });
+
+      renderResults(filtered);
+
+      if (filtered.length) {
+        const group = L.featureGroup(
+          markers.filter(marker => {
+            const item = items[marker.itemIndex];
+            return filtered.includes(item);
+          })
+        );
+        map.fitBounds(group.getBounds().pad(0.2));
+      } else {
+        map.setView([49.0, 31.0], 6);
+      }
+    }
+
+    document.getElementById("searchInput").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") applyFilters();
+    });
+
+    renderResults(items);
+  </script>
 </body>
 </html>
