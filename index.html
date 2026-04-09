@@ -4,9 +4,104 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AvtoMapa</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial;
+      background: #f5f7fa;
+    }
+
+    header {
+      background: #0d6efd;
+      color: white;
+      padding: 15px;
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .search {
+      padding: 15px;
+      background: white;
+      display: flex;
+      gap: 10px;
+    }
+
+    .search input {
+      flex: 1;
+      padding: 10px;
+      font-size: 16px;
+    }
+
+    .search button {
+      background: #0d6efd;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+
+    #map {
+      height: calc(100vh - 120px);
+    }
+  </style>
 </head>
 <body>
-  <h1>AvtoMapa</h1>
-  <p>Пошук автозапчастин на мапі України</p>
+
+<header>
+  🚗 AvtoMapa — пошук запчастин на мапі
+</header>
+
+<div class="search">
+  <input type="text" id="searchInput" placeholder="Введіть код або назву запчастини">
+  <button onclick="search()">Пошук</button>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+  // Карта Україна
+  var map = L.map('map').setView([50.45, 30.52], 6);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // Тестові точки (продавці)
+  var sellers = [
+    { name: "СТО Київ", lat: 50.45, lng: 30.52, part: "масло" },
+    { name: "Запчастини Львів", lat: 49.84, lng: 24.03, part: "фільтр" },
+    { name: "Авто Харків", lat: 49.99, lng: 36.23, part: "гальма" }
+  ];
+
+  var markers = [];
+
+  sellers.forEach(s => {
+    var marker = L.marker([s.lat, s.lng])
+      .addTo(map)
+      .bindPopup("<b>" + s.name + "</b><br>" + s.part);
+
+    marker.part = s.part;
+    markers.push(marker);
+  });
+
+  function search() {
+    var value = document.getElementById("searchInput").value.toLowerCase();
+
+    markers.forEach(m => {
+      if (m.part.includes(value)) {
+        m.addTo(map);
+      } else {
+        map.removeLayer(m);
+      }
+    });
+  }
+</script>
+
 </body>
 </html>
