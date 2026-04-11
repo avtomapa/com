@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AvtoMapa</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            color: #222;
+        }
+
+        header {
+            background: linear-gradient(135deg, #0d6efd, #0a58ca);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        header .title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        header .user-box {
+            font-size: 14px;
+        }
+
+        .topbar {
+            padding: 16px 20px;
+            background: white;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        input, button, select {
+            padding: 12px 14px;
+            font-size: 15px;
+            border-radius: 10px;
+        }
+
+        input, select {
+            border: 1px solid #cfd8e3;
+        }
+
+        button {
+            background: #0d6efd;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #0b5ed7;
+        }
+
+        .btn-secondary {
+            background: #eef2f7;
+            color: #1f2937;
+        }
+
+        .btn-secondary:hover {
+            background: #dde5ee;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+            margin-bottom: 18px;
+        }
+
+        .panel h2 {
+            margin-top: 0;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+
+        #map {
+            height: 420px;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            margin-bottom: 18px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+            border: 1px solid #e8eef5;
+        }
+
+        .card-code {
+            display: inline-block;
+            font-size: 13px;
+            background: #e9f2ff;
+            color: #0d6efd;
+            padding: 6px 10px;
+            border-radius: 999px;
+            margin-bottom: 12px;
+            font-weight: bold;
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .card-price {
+            font-size: 24px;
+            color: #198754;
+            font-weight: bold;
+            margin-bottom: 14px;
+        }
+
+        .card-info {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #444;
+            margin-bottom: 16px;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .status {
+            padding: 12px 14px;
+            background: #eef6ff;
+            border-radius: 10px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .small {
+            font-size: 13px;
+            color: #555;
+        }
+
+        #excelFile {
+            display: none;
+        }
+
+        .file-label {
+            display: inline-block;
+            padding: 12px 14px;
+            border-radius: 10px;
+            background: #0d6efd;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .file-label:hover {
+            background: #0b5ed7;
+        }
+
+        @media (max-width: 800px) {
+            .grid-2, .grid-3 {
+                grid-template-columns: 1fr;
+            }
+
+            #map {
+                height: 320px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="title">🚗 AvtoMapa — продавці та запчастини</div>
+    <div class="user-box" id="userBox">Не виконано вхід</div>
+</header>
+
+<div class="topbar">
+    <input type="text" id="searchInput" placeholder="Пошук по коду або назві" style="flex:1; min-width:220px;">
+    <button onclick="searchParts()">Пошук</button>
+    <button class="btn-secondary" onclick="showAllParts()">Показати всі</button>
+</div>
+
+<div class="container">
+
+    <div class="panel" id="authPanel">
+        <h2>Реєстрація / Вхід продавця</h2>
+
+        <div class="grid-2">
+            <div>
+                <h3>Реєстрація</h3>
+                <input id="regName" type="text" placeholder="Назва продавця / ФОП" style="width:100%; margin-bottom:10px;">
+                <input id="regEmail" type="email" placeholder="Email" style="width:100%; margin-bottom:10px;">
+                <input id="regPassword" type="password" placeholder="Пароль" style="width:100%; margin-bottom:10px;">
+                <input id="regPhone" type="text" placeholder="Телефон" style="width:100%; margin-bottom:10px;">
+                <input id="regAddress" type="text" placeholder="Адреса складу" style="width:100%; margin-bottom:10px;">
+                <select id="regType" style="width:100%; margin-bottom:10px;">
+    <option value="parts">Запчастини</option>
+    <option value="sto">СТО</option>
+    <option value="request">Покупець (запит)</option>
+</select>
+                <div class="grid-2">
+                    <input id="regLat" type="text" placeholder="lat, напр. 50.4230" style="width:100%;">
+                    <input id="regLng" type="text" placeholder="lng, напр. 30.6645" style="width:100%;">
+                </div>
+                <button onclick="registerSeller()" style="margin-top:10px;">Зареєструватися</button>
+            </div>
+
+            <div>
+                <h3>Вхід</h3>
+                <input id="loginEmail" type="email" placeholder="Email" style="width:100%; margin-bottom:10px;">
+                <input id="loginPassword" type="password" placeholder="Пароль" style="width:100%; margin-bottom:10px;">
+                <button onclick="loginSeller()">Увійти</button>
+                <div id="authStatus" class="status">Дані зберігаються локально в цьому браузері.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel hidden" id="sellerPanel">
+        <h2>Кабінет продавця</h2>
+        <div id="sellerInfo" class="status"></div>
+
+        <div style="margin-top:14px;">
+            <label for="excelFile" class="file-label">Завантажити прайс Excel</label>
+            <input type="file" id="excelFile" accept=".xlsx,.xls,.csv">
+            <button class="btn-secondary" onclick="logoutSeller()">Вийти</button>
+        </div>
+
+        <div id="uploadStatus" class="status" style="margin-top:14px;">
+            Формат колонок: Код, Назва, Ціна
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="panel">
+        <h2>Товари на мапі</h2>
+        <div id="results"></div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+    const STORAGE_SELLERS = "avtomapa_sellers";
+    const STORAGE_PARTS = "avtomapa_parts";
+    const STORAGE_CURRENT = "avtomapa_current_seller";
+
+    let sellers = JSON.parse(localStorage.getItem(STORAGE_SELLERS) || "[]");
+    let parts = JSON.parse(localStorage.getItem(STORAGE_PARTS) || "[]");
+    let currentSeller = JSON.parse(localStorage.getItem(STORAGE_CURRENT) || "null");
+
+    let markers = [];
+    let currentResults = [];
+
+    const map = L.map('map').setView([50.4501, 30.5234], 6);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    function saveAll() {
+        localStorage.setItem(STORAGE_SELLERS, JSON.stringify(sellers));
+        localStorage.setItem(STORAGE_PARTS, JSON.stringify(parts));
+        localStorage.setItem(STORAGE_CURRENT, JSON.stringify(currentSeller));
+    }
+
+    function updateUI() {
+        const authPanel = document.getElementById("authPanel");
+        const sellerPanel = document.getElementById("sellerPanel");
+        const userBox = document.getElementById("userBox");
+        const sellerInfo = document.getElementById("sellerInfo");
+
+        if (currentSeller) {
+            authPanel.classList.add("hidden");
+            sellerPanel.classList.remove("hidden");
+            userBox.innerHTML = "Вхід виконано: <b>" + currentSeller.name + "</b>";
+            sellerInfo.innerHTML =
+                "<b>Продавець:</b> " + currentSeller.name + "<br>" +
+                "<b>Email:</b> " + currentSeller.email + "<br>" +
+                "<b>Телефон:</b> " + currentSeller.phone + "<br>" +
+                "<b>Адреса:</b> " + currentSeller.address + "<br>" +
+                "<b>Координати:</b> " + currentSeller.lat + ", " + currentSeller.lng;
+        } else {
+            authPanel.classList.remove("hidden");
+            sellerPanel.classList.add("hidden");
+            userBox.innerHTML = "Не виконано вхід";
+        }
+    }
+
+    function registerSeller() {
+        const name = document.getElementById("regName").value.trim();
+        const email = document.getElementById("regEmail").value.trim().toLowerCase();
+        const password = document.getElementById("regPassword").value.trim();
+        const phone = document.getElementById("regPhone").value.trim();
+        const address = document.getElementById("regAddress").value.trim();
+        const type = document.getElementById("regType").value;
+        const lat = parseFloat(document.getElementById("regLat").value.trim().replace(",", "."));
+        const lng = parseFloat(document.getElementById("regLng").value.trim().replace(",", "."));
+
+        if (!name || !email || !password || !phone || !address || isNaN(lat) || isNaN(lng)) {
+            document.getElementById("authStatus").innerHTML = "Заповни всі поля реєстрації.";
+            return;
+        }
+
+        const exists = sellers.find(s => s.email === email);
+        if (exists) {
+            document.getElementById("authStatus").innerHTML = "Користувач з таким email уже існує.";
+            return;
+        }
+
+        const seller = {
+    id: Date.now(),
+    name,
+    email,
+    password,
+    phone,
+    address,
+    lat,
+    lng,
+    type
+};
+        sellers.push(seller);
+        currentSeller = seller;
+        saveAll();
+        updateUI();
+
+        document.getElementById("authStatus").innerHTML = "Реєстрація успішна.";
+    }
+
+    function loginSeller() {
+        const email = document.getElementById("loginEmail").value.trim().toLowerCase();
+        const password = document.getElementById("loginPassword").value.trim();
+
+        const seller = sellers.find(s => s.email === email && s.password === password);
+
+        if (!seller) {
+            document.getElementById("authStatus").innerHTML = "Невірний email або пароль.";
+            return;
+        }
+
+        currentSeller = seller;
+        saveAll();
+        updateUI();
+        document.getElementById("authStatus").innerHTML = "Вхід виконано.";
+    }
+
+    function logoutSeller() {
+        currentSeller = null;
+        saveAll();
+        updateUI();
+    }
+
+    function normalizeRow(row) {
+        const cleanedRow = {};
+
+        Object.keys(row).forEach(key => {
+            cleanedRow[String(key).trim()] = row[key];
+        });
+
+        function getValue(keys) {
+            for (const key of keys) {
+                const value = cleanedRow[key];
+                if (value !== undefined && value !== null && String(value).trim() !== "") {
+                    return String(value).trim();
+                }
+            }
+            return "";
+        }
+
+        const code = getValue(["code", "Code", "Код", "код"]);
+        const name = getValue(["name", "Name", "Назва", "назва"]);
+        const priceRaw = getValue(["price", "Price", "Ціна", "ціна"]);
+
+        const price = Number(String(priceRaw).replace(",", ".").replace(/[^\d.]/g, "")) || 0;
+
+        if (!code && !name) return null;
+        if (!currentSeller) return null;
+
+        return {type: currentSeller.type,
+            id: Date.now() + Math.random(),
+            sellerId: currentSeller.id,
+            sellerName: currentSeller.name,
+            code: code || "Без коду",
+            name: name || code || "Без назви",
+            price: price,
+            phone: currentSeller.phone,
+            address: currentSeller.address,
+            lat: currentSeller.lat,
+            lng: currentSeller.lng
+        };
+    }
+
+    function clearMarkers() {
+        markers.forEach(marker => map.removeLayer(marker));
+        markers = [];
+    }
+
+    function renderResults(list) {
+        const resultsDiv = document.getElementById("results");
+        currentResults = list;
+        clearMarkers();
+
+        if (list.length === 0) {
+            resultsDiv.innerHTML = "<div class='small'>Товарів поки немає.</div>";
+            return;
+        }
+
+        let html = "<div class='cards'>";
+
+        list.forEach((part, index) => {
+            const marker = L.marker([part.lat, part.lng])
+                .addTo(map)
+                .bindPopup(
+                    "<b>" + part.name + "</b><br>" +
+                    "Код: " + part.code + "<br>" +
+                    "Ціна: " + part.price + " грн<br>" +
+                    "Продавець: " + part.sellerName + "<br>" +
+                    "Телефон: " + part.phone + "<br>" +
+                    "Адреса: " + part.address
+                );
+
+            markers.push(marker);
+
+            html += `
+                <div class="card">
+                    <div class="card-code">${part.code}</div>
+                    <div class="card-title">${part.name}</div>
+                    <div class="card-price">${part.price} грн</div>
+                    <div class="card-info">
+                        <b>Продавець:</b> ${part.sellerName}<br>
+                        <b>Телефон:</b> ${part.phone}<br>
+                        <b>Адреса:</b> ${part.address}
+                    </div>
+                    <div class="card-actions">
+                        <button onclick="focusMarker(${index})">Показати на мапі</button>
+                        <button class="btn-secondary" onclick="callSeller('${part.phone}')">Подзвонити</button>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += "</div>";
+        resultsDiv.innerHTML = html;
+
+        if (list.length > 0) {
+            map.setView([list[0].lat, list[0].lng], 10);
+            markers[0].openPopup();
+        }
+    }
+
+    function focusMarker(index) {
+        const part = currentResults[index];
+        map.setView([part.lat, part.lng], 14);
+        if (markers[index]) markers[index].openPopup();
+    }
+
+    function callSeller(phone) {
+        window.location.href = "tel:" + phone;
+    }
+
+    function searchParts() {
+        const q = document.getElementById("searchInput").value.trim().toLowerCase();
+        const filtered = parts.filter(p =>
+            p.code.toLowerCase().includes(q) ||
+            p.name.toLowerCase().includes(q)
+        );
+        renderResults(filtered);
+    }
+
+    function showAllParts() {
+        renderResults(parts);
+    }
+
+    document.getElementById("excelFile").addEventListener("change", function(event) {
+        const file = event.target.files[0];
+        if (!file || !currentSeller) {
+            document.getElementById("uploadStatus").innerHTML = "Спочатку увійди в кабінет продавця.";
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: "array" });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                const importedParts = jsonData.map(normalizeRow).filter(Boolean);
+
+                if (importedParts.length === 0) {
+                    document.getElementById("uploadStatus").innerHTML = "Файл прочитано, але товари не знайдено.";
+                    return;
+                }
+
+                parts = parts.filter(p => p.sellerId !== currentSeller.id);
+                parts = parts.concat(importedParts);
+
+                saveAll();
+                renderResults(parts);
+
+                document.getElementById("uploadStatus").innerHTML =
+                    "Завантажено товарів продавця: <b>" + importedParts.length + "</b>";
+            } catch (err) {
+                document.getElementById("uploadStatus").innerHTML = "Помилка читання Excel-файлу.";
+                console.error(err);
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
+    });
+
+    updateUI();
+    renderResults(parts);
+</script>
+
+</body>
+</html>
